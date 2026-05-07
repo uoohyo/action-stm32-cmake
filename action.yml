@@ -1,0 +1,35 @@
+name: 'Build with STM32CubeCLT (Command Line Tools) using CMake'
+description: 'Build STM32 projects using STM32CubeCLT Docker image with CMake and Ninja'
+
+inputs:
+  project-path:
+    description: 'Path to the CMake project directory (containing CMakeLists.txt)'
+    required: true
+
+  build-config:
+    description: 'CMake build type (Debug or Release)'
+    required: false
+    default: 'Debug'
+
+  build-target:
+    description: 'CMake build target (default: all)'
+    required: false
+    default: 'all'
+
+  cmake-args:
+    description: 'Additional CMake arguments (e.g., -DCMAKE_TOOLCHAIN_FILE=...)'
+    required: false
+    default: ''
+
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  args:
+    - ${{ inputs.project-path }}
+    - ${{ inputs.build-config }}
+    - ${{ inputs.build-target }}
+    - ${{ inputs.cmake-args }}
+
+branding:
+  icon: 'cpu'
+  color: 'blue'

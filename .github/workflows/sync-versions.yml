@@ -1,0 +1,264 @@
+name: Sync STM32CubeCLT Versions
+
+on:
+  push:
+    branches:
+      - main
+  repository_dispatch:
+    types: [new-stm32cubeclt-version]
+  workflow_dispatch:
+
+jobs:
+  sync-versions:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for tagging
+          ref: main
+
+      - name: Fetch available STM32CubeCLT versions from docker-stm32-cmake
+        id: fetch-versions
+        run: |
+          echo "Fetching versions from docker-stm32-cmake repository..."
+
+          # Fetch versions.md from docker-stm32-cmake
+          VERSIONS_URL="https://raw.githubusercontent.com/uoohyo/docker-stm32-cmake/main/docs/versions.md"
+          curl -fsSL "$VERSIONS_URL" -o /tmp/versions.md
+
+          # Extract supported versions (those with 'available' badge)
+          # Format: | `1.21.0` | ![available]... | ... |
+          # Sort in ascending order (oldest first)
+          VERSIONS=$(grep -oP '(?<=\| `)[0-9]+\.[0-9]+\.[0-9]+(?=` \|)' /tmp/versions.md | sort -V || true)
+
+          if [ -z "$VERSIONS" ]; then
+            echo "No versions found in versions.md"
+            exit 1
+          fi
+
+          echo "Found versions (sorted oldest → newest):"
+          echo "$VERSIONS"
+
+          # Save to output
+          echo "versions<<EOF" >> $GITHUB_OUTPUT
+          echo "$VERSIONS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          # Count versions
+          VERSION_COUNT=$(echo "$VERSIONS" | wc -l)
+          echo "count=$VERSION_COUNT" >> $GITHUB_OUTPUT
+
+      - name: Get existing tags
+        id: existing-tags
+        run: |
+          echo "Fetching existing tags..."
+          git fetch --tags
+          EXISTING_TAGS=$(git tag -l 'v*' | sed 's/^v//' || true)
+
+          echo "existing<<EOF" >> $GITHUB_OUTPUT
+          echo "$EXISTING_TAGS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Determine new versions to tag
+        id: new-versions
+        run: |
+          VERSIONS="${{ steps.fetch-versions.outputs.versions }}"
+          EXISTING="${{ steps.existing-tags.outputs.existing }}"
+
+          # Find versions that don't have tags yet
+          NEW_VERSIONS=""
+          while IFS= read -r version; do
+            if ! echo "$EXISTING" | grep -q "^${version}$"; then
+              NEW_VERSIONS="${NEW_VERSIONS}${version}"$'\n'
+            fi
+          done <<< "$VERSIONS"
+
+          # Remove trailing newline
+          NEW_VERSIONS=$(echo "$NEW_VERSIONS" | sed '/^$/d')
+
+          if [ -z "$NEW_VERSIONS" ]; then
+            echo "No new versions to tag"
+            echo "count=0" >> $GITHUB_OUTPUT
+          else
+            echo "New versions to tag:"
+            echo "$NEW_VERSIONS"
+            echo "new<<EOF" >> $GITHUB_OUTPUT
+            echo "$NEW_VERSIONS" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+
+            COUNT=$(echo "$NEW_VERSIONS" | wc -l)
+            echo "count=$COUNT" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create tags and releases
+        if: steps.new-versions.outputs.count > 0
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          NEW_VERSIONS="${{ steps.new-versions.outputs.new }}"
+
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          while IFS= read -r version; do
+            if [ -z "$version" ]; then
+              continue
+            fi
+
+            TAG="v${version}"
+            echo "Creating tag and release for $TAG..."
+
+            # Parse version components (3-part version: MAJOR.MINOR.PATCH)
+            MAJOR=$(echo "$version" | cut -d. -f1)
+            MINOR=$(echo "$version" | cut -d. -f2)
+            PATCH=$(echo "$version" | cut -d. -f3)
+
+            # Create annotated tag
+            git tag -a "$TAG" -m "STM32CubeCLT version ${version}" || {
+              echo "Failed to create tag $TAG (may already exist)"
+              continue
+            }
+
+            # Push the tag
+            git push origin "$TAG" || {
+              echo "Failed to push tag $TAG"
+              continue
+            }
+
+            # Create GitHub Release
+            gh release create "$TAG" \
+              --title "STM32CubeCLT ${version}" \
+              --notes "$(cat <<-EOF
+          ## STM32CubeCLT v${version}
+
+          This release uses the pre-built Docker image with STM32CubeCLT **${version}** from [docker-stm32-cmake](https://github.com/uoohyo/docker-stm32-cmake).
+
+          ### Usage
+
+          \`\`\`yaml
+          - uses: uoohyo/action-stm32-cmake@${TAG}
+            with:
+              project-path: 'firmware'
+              build-config: 'Release'
+              build-target: 'all'
+          \`\`\`
+
+          ### What's Changed
+
+          - STM32CubeCLT Version: **${version}**
+          - Base Image: \`uoohyo/stm32-cmake:${version}\`
+          - Docker Hub: https://hub.docker.com/r/uoohyo/stm32-cmake/tags
+
+          ### Included Tools
+
+          - STM32CubeMX (code generator)
+          - STM32CubeProgrammer CLI
+          - GNU ARM Toolchain (arm-none-eabi-gcc)
+          - CMake + Ninja build system
+          - Git
+
+          ### Build Time
+
+          ⚡ **No installation needed** - STM32CubeCLT is pre-installed in the Docker image, reducing build time to 1-3 minutes!
+          EOF
+          )" || {
+              echo "Failed to create release for $TAG"
+              continue
+            }
+
+            echo "✅ Created tag and release: $TAG"
+
+          done <<< "$NEW_VERSIONS"
+
+          echo "Tag creation complete!"
+
+      - name: Update version aliases
+        if: steps.new-versions.outputs.count > 0
+        run: |
+          echo "Updating version aliases (v1, v1.21, etc.)..."
+
+          # Get all version tags (3-part format: v1.21.0)
+          ALL_VERSIONS=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' | sed 's/^v//' | sort -V)
+
+          # Track which aliases we've already updated
+          declare -A UPDATED_MAJOR
+          declare -A UPDATED_MINOR
+
+          # Process versions in reverse (newest first)
+          while IFS= read -r version; do
+            MAJOR=$(echo "$version" | cut -d. -f1)
+            MINOR=$(echo "$version" | cut -d. -f2)
+            PATCH=$(echo "$version" | cut -d. -f3)
+
+            MAJOR_TAG="v${MAJOR}"
+            MINOR_TAG="v${MAJOR}.${MINOR}"
+
+            # Update major tag (e.g., v1) - only once for the latest version
+            if [ -z "${UPDATED_MAJOR[$MAJOR]}" ]; then
+              echo "Updating $MAJOR_TAG -> v${version}"
+              git tag -f -a "$MAJOR_TAG" -m "Latest STM32CubeCLT v${MAJOR}.x: ${version}"
+              git push -f origin "$MAJOR_TAG"
+              UPDATED_MAJOR[$MAJOR]=1
+            fi
+
+            # Update minor tag (e.g., v1.21) - only once for the latest patch
+            if [ -z "${UPDATED_MINOR[${MAJOR}.${MINOR}]}" ]; then
+              echo "Updating $MINOR_TAG -> v${version}"
+              git tag -f -a "$MINOR_TAG" -m "Latest STM32CubeCLT v${MAJOR}.${MINOR}.x: ${version}"
+              git push -f origin "$MINOR_TAG"
+              UPDATED_MINOR[${MAJOR}.${MINOR}]=1
+            fi
+
+          done <<< "$(echo "$ALL_VERSIONS" | tac)"  # Reverse to process newest first
+
+          echo "✅ Version aliases updated!"
+
+      - name: Update README badge
+        if: steps.new-versions.outputs.count > 0
+        run: |
+          # Get oldest and newest versions
+          OLDEST=$(echo "${{ steps.fetch-versions.outputs.versions }}" | head -1)
+          NEWEST=$(echo "${{ steps.fetch-versions.outputs.versions }}" | tail -1)
+
+          # Extract major.minor versions
+          OLDEST_SHORT=$(echo "$OLDEST" | grep -oE '^[0-9]+\.[0-9]+')
+          NEWEST_SHORT=$(echo "$NEWEST" | grep -oE '^[0-9]+\.[0-9]+')
+
+          # Update README badge
+          sed -i "s/STM32CubeCLT-v[0-9.]*--v[0-9.]*/STM32CubeCLT-v${OLDEST_SHORT}--v${NEWEST_SHORT}/g" README.md
+
+          # Commit if changed
+          if ! git diff --quiet README.md; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add README.md
+            git commit -m "📝 docs: auto-update STM32CubeCLT version badge to v${OLDEST_SHORT}--v${NEWEST_SHORT}"
+            git push origin main
+            echo "✅ README badge updated"
+          else
+            echo "ℹ️ README badge already up to date"
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## 🔄 Sync Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Total STM32CubeCLT versions available**: ${{ steps.fetch-versions.outputs.count }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **New versions tagged**: ${{ steps.new-versions.outputs.count || 0 }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.new-versions.outputs.count || 0 }}" -gt 0 ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### ✨ New Versions Created" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "${{ steps.new-versions.outputs.new }}" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ All versions are up to date. No new tags created." >> $GITHUB_STEP_SUMMARY
+          fi
