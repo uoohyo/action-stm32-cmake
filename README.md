@@ -7,7 +7,7 @@
 [![Docker Image](https://img.shields.io/docker/v/uoohyo/stm32-cmake?label=docker-stm32-cmake&logo=docker&sort=semver&style=flat-square)](https://hub.docker.com/r/uoohyo/stm32-cmake)
 
 <!-- markdownlint-disable MD033 -->
-<img src="./.github/action-stm32-cmake.jpg" width=256 height=256 alt="action-stm32-cmake" />
+<img src="./.github/action-stm32-cmake.png" width=256 height=256 alt="action-stm32-cmake" />
 <!-- markdownlint-enable MD033 -->
 
 The [action-stm32-cmake](https://github.com/uoohyo/action-stm32-cmake) GitHub Action provides an automated environment for building STM32 projects using CMake and the [STM32CubeCLT](https://www.st.com/en/development-tools/stm32cubeclt.html) (STMicroelectronics Command Line Tools). This action facilitates continuous integration and delivery (CI/CD) for embedded STM32 projects, leveraging pre-built Docker images with all necessary tools pre-installed.
