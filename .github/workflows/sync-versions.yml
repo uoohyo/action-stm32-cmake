@@ -117,17 +117,49 @@ jobs:
             MINOR=$(echo "$version" | cut -d. -f2)
             PATCH=$(echo "$version" | cut -d. -f3)
 
-            # Create annotated tag
+            # Create a temporary branch with version-specific Dockerfile
+            BRANCH="release/temp-${version}"
+            echo "Creating branch $BRANCH with STM32CubeCLT ${version}..."
+
+            # Checkout new branch from main
+            git checkout -b "$BRANCH" main
+
+            # Update Dockerfile to hardcode version
+            sed -i "s/ARG CUBECLT_VERSION=latest/ARG CUBECLT_VERSION=${version}/" Dockerfile
+
+            # Verify the change
+            if ! grep -q "ARG CUBECLT_VERSION=${version}" Dockerfile; then
+              echo "Failed to update Dockerfile for $TAG"
+              git checkout main
+              git branch -D "$BRANCH"
+              continue
+            fi
+
+            # Commit the version-specific Dockerfile
+            git add Dockerfile
+            git commit -m "🔖 chore: set STM32CubeCLT version to ${version} for release ${TAG}"
+
+            # Create tag pointing to this commit
             git tag -a "$TAG" -m "STM32CubeCLT version ${version}" || {
-              echo "Failed to create tag $TAG (may already exist)"
+              echo "Failed to create tag $TAG"
+              git checkout main
+              git branch -D "$BRANCH"
               continue
             }
 
-            # Push the tag
+            # Push tag (not branch - we only keep the tag)
             git push origin "$TAG" || {
               echo "Failed to push tag $TAG"
+              git checkout main
+              git branch -D "$BRANCH"
               continue
             }
+
+            # Clean up: return to main and delete temp branch
+            git checkout main
+            git branch -D "$BRANCH"
+
+            echo "✅ Created tag $TAG with Dockerfile hardcoded to ${version}"
 
             # Create GitHub Release
             gh release create "$TAG" \
@@ -199,21 +231,50 @@ jobs:
 
             # Update major tag (e.g., v1) - only once for the latest version
             if [ -z "${UPDATED_MAJOR[$MAJOR]}" ]; then
-              echo "Updating $MAJOR_TAG -> v${version}"
-              git tag -f -a "$MAJOR_TAG" -m "Latest STM32CubeCLT v${MAJOR}.x: ${version}"
-              git push -f origin "$MAJOR_TAG"
-              UPDATED_MAJOR[$MAJOR]=1
+              FULL_TAG="v${version}"
+              # Resolve the commit that the full version tag points to
+              TARGET_COMMIT=$(git rev-parse "${FULL_TAG}^{commit}" 2>/dev/null || echo "")
+
+              if [ -n "$TARGET_COMMIT" ]; then
+                echo "Updating $MAJOR_TAG -> v${version} (commit: ${TARGET_COMMIT:0:8})"
+                git tag -f -a "$MAJOR_TAG" -m "Latest STM32CubeCLT v${MAJOR}.x: ${version}" "$TARGET_COMMIT"
+                git push -f origin "$MAJOR_TAG"
+                UPDATED_MAJOR[$MAJOR]=1
+              else
+                echo "⚠️  Could not resolve commit for ${FULL_TAG}, skipping ${MAJOR_TAG}"
+              fi
             fi
 
             # Update minor tag (e.g., v1.21) - only once for the latest patch
             if [ -z "${UPDATED_MINOR[${MAJOR}.${MINOR}]}" ]; then
-              echo "Updating $MINOR_TAG -> v${version}"
-              git tag -f -a "$MINOR_TAG" -m "Latest STM32CubeCLT v${MAJOR}.${MINOR}.x: ${version}"
-              git push -f origin "$MINOR_TAG"
-              UPDATED_MINOR[${MAJOR}.${MINOR}]=1
+              FULL_TAG="v${version}"
+              TARGET_COMMIT=$(git rev-parse "${FULL_TAG}^{commit}" 2>/dev/null || echo "")
+
+              if [ -n "$TARGET_COMMIT" ]; then
+                echo "Updating $MINOR_TAG -> v${version} (commit: ${TARGET_COMMIT:0:8})"
+                git tag -f -a "$MINOR_TAG" -m "Latest STM32CubeCLT v${MAJOR}.${MINOR}.x: ${version}" "$TARGET_COMMIT"
+                git push -f origin "$MINOR_TAG"
+                UPDATED_MINOR[${MAJOR}.${MINOR}]=1
+              else
+                echo "⚠️  Could not resolve commit for ${FULL_TAG}, skipping ${MINOR_TAG}"
+              fi
             fi
 
           done <<< "$(echo "$ALL_VERSIONS" | tac)"  # Reverse to process newest first
+
+          # Update 'latest' tag to point to newest version
+          echo "Updating 'latest' tag..."
+          LATEST_VERSION=$(echo "$ALL_VERSIONS" | tail -1)
+          LATEST_TAG="v${LATEST_VERSION}"
+
+          if git rev-parse "$LATEST_TAG" >/dev/null 2>&1; then
+            LATEST_COMMIT=$(git rev-parse "${LATEST_TAG}^{commit}")
+            git tag -f -a "latest" -m "Latest STM32CubeCLT version: ${LATEST_VERSION}" "$LATEST_COMMIT"
+            git push -f origin "latest"
+            echo "✅ Updated 'latest' tag to point to ${LATEST_VERSION}"
+          else
+            echo "⚠️  Latest tag ${LATEST_TAG} not found, skipping 'latest' tag update"
+          fi
 
           echo "✅ Version aliases updated!"
 

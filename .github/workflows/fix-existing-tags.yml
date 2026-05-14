@@ -1,0 +1,159 @@
+name: Fix Existing Tags (Retroactive)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fix-tags:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Get all version tags
+        id: get-tags
+        run: |
+          # Get all 3-part version tags (v1.21.0 format)
+          TAGS=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' | sed 's/^v//' | sort -V)
+
+          echo "tags<<EOF" >> $GITHUB_OUTPUT
+          echo "$TAGS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          COUNT=$(echo "$TAGS" | wc -l)
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+          echo "Found $COUNT version tags to fix"
+
+      - name: Fix each tag
+        env:
+          TAGS: ${{ steps.get-tags.outputs.tags }}
+        run: |
+          FIXED=0
+          SKIPPED=0
+
+          while IFS= read -r version; do
+            if [ -z "$version" ]; then
+              continue
+            fi
+
+            TAG="v${version}"
+            BRANCH="fix/${version}"
+
+            echo ""
+            echo "=== Processing $TAG ==="
+
+            # Create branch from main
+            git checkout main
+            git branch -D "$BRANCH" 2>/dev/null || true
+            git checkout -b "$BRANCH"
+
+            # Update Dockerfile
+            sed -i "s/ARG CUBECLT_VERSION=.*/ARG CUBECLT_VERSION=${version}/" Dockerfile
+
+            # Check if change was made
+            if ! grep -q "ARG CUBECLT_VERSION=${version}" Dockerfile; then
+              echo "⚠️  Failed to update Dockerfile for $TAG"
+              SKIPPED=$((SKIPPED + 1))
+              continue
+            fi
+
+            # Check if this is already the current state
+            if git diff --quiet Dockerfile; then
+              echo "ℹ️  $TAG already has correct Dockerfile, skipping"
+              SKIPPED=$((SKIPPED + 1))
+              continue
+            fi
+
+            # Commit and recreate tag
+            git add Dockerfile
+            git commit -m "🔖 chore: set STM32CubeCLT version to ${version} for release ${TAG}"
+
+            # Force-update tag
+            git tag -f -a "$TAG" -m "STM32CubeCLT version ${version} (retroactively fixed)"
+            git push -f origin "$TAG"
+
+            FIXED=$((FIXED + 1))
+            echo "✅ Fixed $TAG"
+
+          done <<< "$TAGS"
+
+          # Return to main and cleanup
+          git checkout main
+
+          echo ""
+          echo "=== Summary ==="
+          echo "Fixed: $FIXED tags"
+          echo "Skipped: $SKIPPED tags"
+
+      - name: Update version aliases
+        run: |
+          echo "Updating version aliases after fixes..."
+
+          # Get all version tags again
+          ALL_VERSIONS=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' | sed 's/^v//' | sort -V)
+
+          declare -A UPDATED_MAJOR
+          declare -A UPDATED_MINOR
+
+          # Process versions in reverse (newest first)
+          while IFS= read -r version; do
+            MAJOR=$(echo "$version" | cut -d. -f1)
+            MINOR=$(echo "$version" | cut -d. -f2)
+
+            MAJOR_TAG="v${MAJOR}"
+            MINOR_TAG="v${MAJOR}.${MINOR}"
+            FULL_TAG="v${version}"
+
+            # Resolve commit
+            TARGET_COMMIT=$(git rev-parse "${FULL_TAG}^{commit}" 2>/dev/null || echo "")
+
+            if [ -z "$TARGET_COMMIT" ]; then
+              echo "⚠️  Could not resolve commit for ${FULL_TAG}"
+              continue
+            fi
+
+            # Update major tag
+            if [ -z "${UPDATED_MAJOR[$MAJOR]}" ]; then
+              echo "Updating $MAJOR_TAG -> v${version}"
+              git tag -f -a "$MAJOR_TAG" -m "Latest STM32CubeCLT v${MAJOR}.x: ${version}" "$TARGET_COMMIT"
+              git push -f origin "$MAJOR_TAG"
+              UPDATED_MAJOR[$MAJOR]=1
+            fi
+
+            # Update minor tag
+            if [ -z "${UPDATED_MINOR[${MAJOR}.${MINOR}]}" ]; then
+              echo "Updating $MINOR_TAG -> v${version}"
+              git tag -f -a "$MINOR_TAG" -m "Latest STM32CubeCLT v${MAJOR}.${MINOR}.x: ${version}" "$TARGET_COMMIT"
+              git push -f origin "$MINOR_TAG"
+              UPDATED_MINOR[${MAJOR}.${MINOR}]=1
+            fi
+
+          done <<< "$(echo "$ALL_VERSIONS" | tac)"
+
+          # Update 'latest' tag
+          LATEST_VERSION=$(echo "$ALL_VERSIONS" | tail -1)
+          LATEST_TAG="v${LATEST_VERSION}"
+          LATEST_COMMIT=$(git rev-parse "${LATEST_TAG}^{commit}")
+          git tag -f -a "latest" -m "Latest STM32CubeCLT version: ${LATEST_VERSION}" "$LATEST_COMMIT"
+          git push -f origin "latest"
+
+          echo "✅ All aliases updated"
+
+      - name: Summary
+        run: |
+          echo "## 🔧 Fix Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "All existing tags have been retroactively fixed to include version-specific Dockerfiles." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Total tags processed**: ${{ steps.get-tags.outputs.count }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: Each tag now points to a commit with \`ARG CUBECLT_VERSION=X.Y.Z\` hardcoded" >> $GITHUB_STEP_SUMMARY
