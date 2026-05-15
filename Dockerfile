@@ -1,6 +1,6 @@
 # Argument for STM32CubeCLT version (defaults to latest)
 # This will be set automatically from the git tag during build
-ARG CUBECLT_VERSION=latest
+ARG CUBECLT_VERSION=1.12.1
 
 # Base Image with specific STM32CubeCLT version pre-installed
 FROM uoohyo/stm32-cmake:${CUBECLT_VERSION}
