@@ -10,6 +10,11 @@ LABEL org.opencontainers.image.source="https://github.com/uoohyo/action-stm32-cm
 LABEL org.opencontainers.image.description="Build STM32 projects with STM32CubeCLT ${CUBECLT_VERSION} using CMake"
 LABEL org.opencontainers.image.licenses="MIT"
 
+# Override base image USER to run as root in GitHub Actions
+# Base image (uoohyo/stm32-cmake) sets USER stm32user for security,
+# but GitHub Actions requires root for /github/workspace write access
+USER root
+
 # Copy entrypoint script
 COPY --chmod=755 entrypoint.sh /entrypoint.sh
 
