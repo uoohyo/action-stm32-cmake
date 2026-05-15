@@ -39,7 +39,7 @@ jobs:
     build:
         runs-on: ubuntu-22.04
         steps:
-        - uses: actions/checkout@v4
+        - uses: actions/checkout@v5
         - name: Build with STM32CubeCLT
           uses: uoohyo/action-stm32-cmake@v1.21.0
           with:
@@ -190,7 +190,7 @@ jobs:
       matrix:
         preset: [Debug, Release, MinSizeRel]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Build ${{ matrix.preset }}
         uses: uoohyo/action-stm32-cmake@v1.21.0
         with:
@@ -201,46 +201,6 @@ jobs:
 **Requirements:**
 - CMakePresets.json must exist in your project
 - The preset must define a `binaryDir` pattern (typically `build/${presetName}`)
-
-### Matrix Build (Multiple Configurations)
-
-```yaml
-jobs:
-  build:
-    runs-on: ubuntu-22.04
-    strategy:
-      matrix:
-        config: [Debug, Release]
-        target: [firmware.elf, bootloader.elf]
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build ${{ matrix.target }} (${{ matrix.config }})
-        uses: uoohyo/action-stm32-cmake@v1.21.0
-        with:
-          project-path: 'embedded'
-          build-config: ${{ matrix.config }}
-          build-target: ${{ matrix.target }}
-```
-
-## Notes
-
-### Build Directory
-
-The action creates a `build/` directory inside your project path for CMake output. Build artifacts (`.elf`, `.bin`, `.hex` files) will be located in `<project-path>/build/` after the build completes.
-
-### CMake Generator
-
-This action uses **Ninja** as the CMake generator for faster builds. Your project does not need to specify the generator in `CMakeLists.txt` — the action handles this automatically.
-
-### Git Submodules
-
-If your project uses Git submodules, ensure you check them out before running the build:
-
-```yaml
-- uses: actions/checkout@v4
-  with:
-    submodules: true
-```
 
 ## License
 
