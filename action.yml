@@ -17,7 +17,9 @@ inputs:
     default: 'all'
 
   cmake-args:
-    description: 'Additional CMake arguments (e.g., -DCMAKE_TOOLCHAIN_FILE=...)'
+    description: |
+      Additional CMake arguments (e.g., -DCMAKE_TOOLCHAIN_FILE=..., --preset Debug).
+      When using --preset, the build-config parameter is ignored as the preset defines its own configuration.
     required: false
     default: ''
 
