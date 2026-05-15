@@ -87,15 +87,44 @@ fi
 # Navigate to project directory
 cd "$PROJECT_PATH"
 
-# Create and enter build directory
-BUILD_DIR="build"
-echo ">>> Creating build directory: ${BUILD_DIR}"
-mkdir -p "$BUILD_DIR"
-cd "$BUILD_DIR"
+# Detect if using CMake Presets
+PRESET_NAME=""
+USING_PRESET=false
+
+if [[ "$CMAKE_ARGS" =~ --preset[[:space:]]+([^[:space:]]+) ]]; then
+    PRESET_NAME="${BASH_REMATCH[1]}"
+    USING_PRESET=true
+    echo ">>> Detected CMake Preset: ${PRESET_NAME}"
+fi
+
+# Determine build directory strategy
+if [ "$USING_PRESET" = true ]; then
+    # Preset mode: CMake will create the directory
+    # Standard preset pattern: build/${PRESET_NAME}
+    EXPECTED_BUILD_DIR="build/${PRESET_NAME}"
+    echo ">>> Using CMake Preset: ${PRESET_NAME}"
+    echo ">>> Expected binary directory: ${EXPECTED_BUILD_DIR}"
+    CMAKE_CONFIG_DIR="."
+else
+    # Traditional mode: Use hardcoded build directory
+    BUILD_DIR="build"
+    EXPECTED_BUILD_DIR="$BUILD_DIR"
+    echo ">>> Creating build directory: ${BUILD_DIR}"
+    mkdir -p "$BUILD_DIR"
+    cd "$BUILD_DIR"
+    CMAKE_CONFIG_DIR=".."
+fi
 
 # Configure with CMake
 echo ">>> Configuring CMake..."
-CMAKE_CMD="cmake .. -G Ninja -DCMAKE_BUILD_TYPE=${BUILD_CONFIG}"
+
+if [ "$USING_PRESET" = true ]; then
+    # Preset mode: CMake handles build type via preset configuration
+    CMAKE_CMD="cmake ${CMAKE_CONFIG_DIR} -G Ninja"
+else
+    # Traditional mode: Specify build type explicitly
+    CMAKE_CMD="cmake ${CMAKE_CONFIG_DIR} -G Ninja -DCMAKE_BUILD_TYPE=${BUILD_CONFIG}"
+fi
 
 # Append additional CMake arguments if provided
 if [ -n "$CMAKE_ARGS" ]; then
@@ -110,6 +139,20 @@ eval "$CMAKE_CMD" || {
 
 echo ""
 
+# Navigate to binary directory if using presets
+if [ "$USING_PRESET" = true ]; then
+    if [ ! -d "$EXPECTED_BUILD_DIR" ]; then
+        echo "[ERROR] CMake preset binary directory not created: ${EXPECTED_BUILD_DIR}"
+        echo "[ERROR] This may indicate:"
+        echo "[ERROR]   - Preset '${PRESET_NAME}' doesn't exist in CMakePresets.json"
+        echo "[ERROR]   - Preset uses a non-standard binaryDir pattern"
+        echo "[ERROR] Please check your CMakePresets.json configuration"
+        exit 1
+    fi
+    cd "$EXPECTED_BUILD_DIR"
+    echo ">>> Entered binary directory: ${EXPECTED_BUILD_DIR}"
+fi
+
 # Build with Ninja
 echo ">>> Building target: ${BUILD_TARGET}"
 ninja "$BUILD_TARGET" || {
@@ -119,7 +162,7 @@ ninja "$BUILD_TARGET" || {
 
 echo ""
 echo "=== Build Complete ==="
-echo "Build artifacts are in: ${PROJECT_PATH}/${BUILD_DIR}"
+echo "Build artifacts are in: ${PROJECT_PATH}/${EXPECTED_BUILD_DIR}"
 echo ""
 
 # List build outputs
