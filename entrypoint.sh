@@ -99,8 +99,9 @@ fi
 
 # Determine build directory strategy
 if [ "$USING_PRESET" = true ]; then
-    # Preset mode: CMake will create the directory
+    # Preset mode: Create parent build directory first
     # Standard preset pattern: build/${PRESET_NAME}
+    mkdir -p "build"
     EXPECTED_BUILD_DIR="build/${PRESET_NAME}"
     echo ">>> Using CMake Preset: ${PRESET_NAME}"
     echo ">>> Expected binary directory: ${EXPECTED_BUILD_DIR}"
