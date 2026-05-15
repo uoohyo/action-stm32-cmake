@@ -1,14 +1,16 @@
-# action-stm32-cmake
+<!-- markdownlint-disable MD033 MD041 -->
+<p align="center">
+  <img src="./.github/action-stm32-cmake_banner.png" alt="action-stm32-cmake_banner" width="800" />
+</p>
 
-[![Sync STM32CubeCLT Versions](https://img.shields.io/github/actions/workflow/status/uoohyo/action-stm32-cmake/sync-versions.yml?branch=main&label=sync&logo=github-actions&style=flat-square)](https://github.com/uoohyo/action-stm32-cmake/actions/workflows/sync-versions.yml)
-[![GitHub Release](https://img.shields.io/github/v/release/uoohyo/action-stm32-cmake?logo=github&style=flat-square)](https://github.com/uoohyo/action-stm32-cmake/releases)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
-[![STM32CubeCLT Versions](https://img.shields.io/badge/STM32CubeCLT-v1.11--v1.21-blue?logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTEyIDJDNi40OCAyIDIgNi40OCAyIDEyczQuNDggMTAgMTAgMTAgMTAtNC40OCAxMC0xMFMxNy41MiAyIDEyIDJ6bTAgMThjLTQuNDEgMC04LTMuNTktOC04czMuNTktOCA4LTggOCAzLjU5IDggOC0zLjU5IDgtOCA4eiIvPjwvc3ZnPg==&style=flat-square)](https://github.com/uoohyo/docker-stm32-cmake/blob/main/docs/versions.md)
-[![Docker Image](https://img.shields.io/docker/v/uoohyo/stm32-cmake?label=docker-stm32-cmake&logo=docker&sort=semver&style=flat-square)](https://hub.docker.com/r/uoohyo/stm32-cmake)
-
-<!-- markdownlint-disable MD033 -->
-<img src="./.github/action-stm32-cmake.png" width=256 height=256 alt="action-stm32-cmake" />
-<!-- markdownlint-enable MD033 -->
+<p align="center">
+  <a href="https://github.com/uoohyo/action-stm32-cmake/actions/workflows/sync-versions.yml"><img src="https://img.shields.io/github/actions/workflow/status/uoohyo/action-stm32-cmake/sync-versions.yml?branch=main&label=sync&logo=github-actions&style=flat-square" alt="Sync STM32CubeCLT Versions" /></a>
+  <a href="https://github.com/uoohyo/action-stm32-cmake/releases"><img src="https://img.shields.io/github/v/release/uoohyo/action-stm32-cmake?logo=github&style=flat-square" alt="GitHub Release" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow?style=flat-square" alt="License: MIT" /></a>
+  <a href="https://github.com/uoohyo/docker-stm32-cmake/blob/main/docs/versions.md"><img src="https://img.shields.io/badge/STM32CubeCLT-v1.11--v1.21-blue?logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTEyIDJDNi40OCAyIDIgNi40OCAyIDEyczQuNDggMTAgMTAgMTAgMTAtNC40OCAxMC0xMFMxNy41MiAyIDEyIDJ6bTAgMThjLTQuNDEgMC04LTMuNTktOC04czMuNTktOCA4LTggOCAzLjU5IDggOC0zLjU5IDgtOCA4eiIvPjwvc3ZnPg==&style=flat-square" alt="STM32CubeCLT Versions" /></a>
+  <a href="https://hub.docker.com/r/uoohyo/stm32-cmake"><img src="https://img.shields.io/docker/v/uoohyo/stm32-cmake?label=docker-stm32-cmake&logo=docker&sort=semver&style=flat-square" alt="Docker Image" /></a>
+</p>
+<!-- markdownlint-enable MD033 MD041 -->
 
 The [action-stm32-cmake](https://github.com/uoohyo/action-stm32-cmake) GitHub Action provides an automated environment for building STM32 projects using CMake and the [STM32CubeCLT](https://www.st.com/en/development-tools/stm32cubeclt.html) (STMicroelectronics Command Line Tools). This action facilitates continuous integration and delivery (CI/CD) for embedded STM32 projects, leveraging pre-built Docker images with all necessary tools pre-installed.
 
