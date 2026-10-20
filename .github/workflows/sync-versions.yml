@@ -1,6 +1,10 @@
 name: Sync STM32CubeCLT Versions
 
 on:
+  # Periodic reconciliation: Docker documentation updates do not directly
+  # dispatch workflows in this repository.
+  schedule:
+    - cron: '33 4 * * 0'
   push:
     branches:
       - main
@@ -32,7 +36,11 @@ jobs:
           # Extract supported versions (those with 'available' badge)
           # Format: | `1.21.0` | ![available]... | ... |
           # Sort in ascending order (oldest first)
-          VERSIONS=$(grep -oP '(?<=\| `)[0-9]+\.[0-9]+\.[0-9]+(?=` \|)' /tmp/versions.md | sort -V || true)
+          VERSIONS=$(awk -F'|' '$3 ~ /!\[available\]/ {
+            version=$2
+            gsub(/[^0-9.]/, "", version)
+            if (version ~ /^[0-9]+\.[0-9]+\.[0-9]+$/) print version
+          }' /tmp/versions.md | sort -Vu)
 
           if [ -z "$VERSIONS" ]; then
             echo "No versions found in versions.md"
