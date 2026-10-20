@@ -1,0 +1,66 @@
+name: Validate STM32 CMake Action
+
+on:
+  pull_request:
+    paths:
+      - 'entrypoint.sh'
+      - 'action.yml'
+      - 'Dockerfile'
+      - '.github/workflows/validate-action.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [traditional, custom-preset]
+    steps:
+      - uses: actions/checkout@v6
+      - name: Create minimal ARM CMake fixture
+        run: |
+          mkdir -p ci-fixture
+          cat > ci-fixture/CMakeLists.txt <<'EOF'
+          cmake_minimum_required(VERSION 3.22)
+          set(CMAKE_C_COMPILER arm-none-eabi-gcc)
+          project(ci_firmware LANGUAGES C)
+          add_executable(firmware main.c)
+          EOF
+          echo 'int main(void) { return 0; }' > ci-fixture/main.c
+          cat > ci-fixture/CMakePresets.json <<'EOF'
+          {
+            "version": 3,
+            "configurePresets": [{
+              "name": "Custom",
+              "generator": "Ninja",
+              "binaryDir": "${sourceDir}/out/nonstandard",
+              "cacheVariables": {"CMAKE_BUILD_TYPE": "Debug"}
+            }]
+          }
+          EOF
+      - name: Build traditional
+        if: matrix.mode == 'traditional'
+        uses: ./
+        with:
+          project-path: ci-fixture
+          build-config: Debug
+          build-target: firmware
+      - name: Build preset with custom binaryDir
+        if: matrix.mode == 'custom-preset'
+        uses: ./
+        with:
+          project-path: ci-fixture
+          build-config: Debug
+          build-target: firmware
+          cmake-args: '--preset Custom'
+      - name: Assert build output
+        run: |
+          if [ "${{ matrix.mode }}" = "traditional" ]; then
+            test -s ci-fixture/build/firmware
+          else
+            test -s ci-fixture/out/nonstandard/firmware
+          fi
