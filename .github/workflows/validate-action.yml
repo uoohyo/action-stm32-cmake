@@ -27,6 +27,7 @@ jobs:
           cat > ci-fixture/CMakeLists.txt <<'EOF'
           cmake_minimum_required(VERSION 3.22)
           set(CMAKE_C_COMPILER arm-none-eabi-gcc)
+          set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
           project(ci_firmware LANGUAGES C)
           add_library(firmware STATIC main.c)
           EOF
