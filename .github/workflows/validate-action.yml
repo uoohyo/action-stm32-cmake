@@ -28,7 +28,7 @@ jobs:
           cmake_minimum_required(VERSION 3.22)
           set(CMAKE_C_COMPILER arm-none-eabi-gcc)
           project(ci_firmware LANGUAGES C)
-          add_executable(firmware main.c)
+          add_library(firmware STATIC main.c)
           EOF
           echo 'int main(void) { return 0; }' > ci-fixture/main.c
           cat > ci-fixture/CMakePresets.json <<'EOF'
@@ -60,7 +60,7 @@ jobs:
       - name: Assert build output
         run: |
           if [ "${{ matrix.mode }}" = "traditional" ]; then
-            test -s ci-fixture/build/firmware
+            test -s ci-fixture/build/libfirmware.a
           else
-            test -s ci-fixture/out/nonstandard/firmware
+            test -s ci-fixture/out/nonstandard/libfirmware.a
           fi
