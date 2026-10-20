@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 # Banner
 cat << 'EOF'
@@ -87,87 +87,61 @@ fi
 # Navigate to project directory
 cd "$PROJECT_PATH"
 
-# Detect if using CMake Presets
-PRESET_NAME=""
-USING_PRESET=false
-
-if [[ "$CMAKE_ARGS" =~ --preset[[:space:]]+([^[:space:]]+) ]]; then
-    PRESET_NAME="${BASH_REMATCH[1]}"
-    USING_PRESET=true
-    echo ">>> Detected CMake Preset: ${PRESET_NAME}"
-fi
-
-# Determine build directory strategy
-if [ "$USING_PRESET" = true ]; then
-    # Preset mode: Create parent build directory first
-    # Standard preset pattern: build/${PRESET_NAME}
-    mkdir -p "build"
-    EXPECTED_BUILD_DIR="build/${PRESET_NAME}"
-    echo ">>> Using CMake Preset: ${PRESET_NAME}"
-    echo ">>> Expected binary directory: ${EXPECTED_BUILD_DIR}"
-    CMAKE_CONFIG_DIR="."
-else
-    # Traditional mode: Use hardcoded build directory
-    BUILD_DIR="build"
-    EXPECTED_BUILD_DIR="$BUILD_DIR"
-    echo ">>> Creating build directory: ${BUILD_DIR}"
-    mkdir -p "$BUILD_DIR"
-    cd "$BUILD_DIR"
-    CMAKE_CONFIG_DIR=".."
-fi
-
-# Configure with CMake
-echo ">>> Configuring CMake..."
-
-if [ "$USING_PRESET" = true ]; then
-    # Preset mode: CMake handles build type via preset configuration
-    CMAKE_CMD="cmake ${CMAKE_CONFIG_DIR} -G Ninja"
-else
-    # Traditional mode: Specify build type explicitly
-    CMAKE_CMD="cmake ${CMAKE_CONFIG_DIR} -G Ninja -DCMAKE_BUILD_TYPE=${BUILD_CONFIG}"
-fi
-
-# Append additional CMake arguments if provided
+# Do not evaluate arbitrary shell fragments from cmake-args.
+# For paths containing spaces, define arguments in CMakePresets.json.
+EXTRA_ARGS=()
 if [ -n "$CMAKE_ARGS" ]; then
-    CMAKE_CMD="${CMAKE_CMD} ${CMAKE_ARGS}"
+    read -r -a EXTRA_ARGS <<< "$CMAKE_ARGS"
 fi
 
-echo "Running: $CMAKE_CMD"
-eval "$CMAKE_CMD" || {
-    echo "[ERROR] CMake configuration failed"
-    exit 1
-}
+PRESET_NAME=""
+for ((i=0; i<${#EXTRA_ARGS[@]}; i++)); do
+    case "${EXTRA_ARGS[i]}" in
+        --preset)
+            if (( i + 1 >= ${#EXTRA_ARGS[@]} )); then
+                echo "[ERROR] --preset requires a value"
+                exit 1
+            fi
+            PRESET_NAME="${EXTRA_ARGS[i+1]}"
+            ;;
+        --preset=*)
+            PRESET_NAME="${EXTRA_ARGS[i]#--preset=}"
+            ;;
+    esac
+done
 
-echo ""
+CONFIG_LOG=$(mktemp)
+trap 'rm -f "$CONFIG_LOG"' EXIT
 
-# Navigate to binary directory if using presets
-if [ "$USING_PRESET" = true ]; then
-    if [ ! -d "$EXPECTED_BUILD_DIR" ]; then
-        echo "[ERROR] CMake preset binary directory not created: ${EXPECTED_BUILD_DIR}"
-        echo "[ERROR] This may indicate:"
-        echo "[ERROR]   - Preset '${PRESET_NAME}' doesn't exist in CMakePresets.json"
-        echo "[ERROR]   - Preset uses a non-standard binaryDir pattern"
-        echo "[ERROR] Please check your CMakePresets.json configuration"
+if [ -n "$PRESET_NAME" ]; then
+    echo ">>> Configuring CMake preset: $PRESET_NAME"
+    # The preset determines both generator and binaryDir.
+    if ! cmake -S . "${EXTRA_ARGS[@]}" 2>&1 | tee "$CONFIG_LOG"; then
+        echo "[ERROR] Preset configuration failed"
         exit 1
     fi
-    cd "$EXPECTED_BUILD_DIR"
-    echo ">>> Entered binary directory: ${EXPECTED_BUILD_DIR}"
+    BUILD_DIR=$(sed -n 's/^-- Build files have been written to: //p' "$CONFIG_LOG" | tail -1)
+    if [ -z "$BUILD_DIR" ] || [ ! -d "$BUILD_DIR" ]; then
+        echo "[ERROR] Could not determine configured preset binaryDir"
+        exit 1
+    fi
+else
+    BUILD_DIR="$PROJECT_PATH/build"
+    mkdir -p "$BUILD_DIR"
+    if ! cmake -S . -B "$BUILD_DIR" -G Ninja \
+        -DCMAKE_BUILD_TYPE="$BUILD_CONFIG" "${EXTRA_ARGS[@]}"; then
+        echo "[ERROR] CMake configuration failed"
+        exit 1
+    fi
 fi
 
-# Build with Ninja
-echo ">>> Building target: ${BUILD_TARGET}"
-ninja "$BUILD_TARGET" || {
-    echo "[ERROR] Build failed"
+echo ">>> Building target: $BUILD_TARGET"
+cmake --build "$BUILD_DIR" --target "$BUILD_TARGET" || {
+    echo "[ERROR] CMake build failed"
     exit 1
 }
 
 echo ""
 echo "=== Build Complete ==="
-echo "Build artifacts are in: ${PROJECT_PATH}/${EXPECTED_BUILD_DIR}"
-echo ""
-
-# List build outputs
-if compgen -G "*.elf" > /dev/null || compgen -G "*.bin" > /dev/null || compgen -G "*.hex" > /dev/null; then
-    echo "Generated binaries:"
-    ls -lh *.elf *.bin *.hex 2>/dev/null || true
-fi
+echo "Build artifacts are in: $BUILD_DIR"
+find "$BUILD_DIR" -maxdepth 2 -type f \( -name '*.elf' -o -name '*.bin' -o -name '*.hex' \) -print | head -20
