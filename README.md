@@ -225,3 +225,25 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## Release verification
+
+See [release propagation and verification](docs/release-verification.md) for stage-specific readiness, manual recovery, and immutable tag behavior.
+
+### Quoting `cmake-args`
+
+Arguments support whitespace separators, single/double quotes, and backslash escapes.
+For example, `--preset "Custom Debug" -DNAME="hello world"` preserves each quoted
+value as one argument. Empty quoted arguments are preserved; unmatched quotes and
+trailing escapes fail explicitly. Shell expansion is never performed: `$HOME`,
+`$(command)`, backticks, globs, and shell operators are passed as literal text.
+Use CMake presets for complex toolchain settings. This behavior applies to refs
+containing the parser update, not to older immutable toolchain tags.
+
+### Action revision releases (decision pending)
+
+Existing full toolchain tags must not silently move when Action code changes.
+An additive immutable revision (for example, `v1.21.0-action.1`) is a proposed upgrade
+path, not an available release or an approved naming policy. Before publishing,
+confirm the naming policy, test custom `binaryDir` and non-default generators against
+the exact new ref, and document the upgrade. This PR does not publish or retarget tags.

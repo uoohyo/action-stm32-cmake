@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'entrypoint.sh'
+      - 'parse-cmake-args.sh'
       - 'action.yml'
       - 'Dockerfile'
       - '.github/workflows/validate-action.yml'
@@ -18,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        mode: [traditional, custom-preset]
+        mode: [traditional, custom-preset, quoted-args]
     steps:
       - uses: actions/checkout@v6
       - name: Create minimal ARM CMake fixture
@@ -30,6 +31,9 @@ jobs:
           set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
           project(ci_firmware LANGUAGES C)
           add_library(firmware STATIC main.c)
+          if(DEFINED TEST_MESSAGE AND NOT TEST_MESSAGE STREQUAL "hello world")
+            message(FATAL_ERROR "Quoted argument was split: ${TEST_MESSAGE}")
+          endif()
           EOF
           echo 'int main(void) { return 0; }' > ci-fixture/main.c
           cat > ci-fixture/CMakePresets.json <<'EOF'
@@ -58,9 +62,17 @@ jobs:
           build-config: Debug
           build-target: firmware
           cmake-args: '--preset Custom'
+      - name: Build with quoted arguments
+        if: matrix.mode == 'quoted-args'
+        uses: ./
+        with:
+          project-path: ci-fixture
+          build-config: Debug
+          build-target: firmware
+          cmake-args: '-DTEST_MESSAGE="hello world"'
       - name: Assert build output
         run: |
-          if [ "${{ matrix.mode }}" = "traditional" ]; then
+          if [ "${{ matrix.mode }}" != "custom-preset" ]; then
             test -s ci-fixture/build/libfirmware.a
           else
             test -s ci-fixture/out/nonstandard/libfirmware.a
