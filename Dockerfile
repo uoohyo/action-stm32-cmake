@@ -16,6 +16,6 @@ LABEL org.opencontainers.image.licenses="MIT"
 USER root
 
 # Copy entrypoint script
-COPY --chmod=755 entrypoint.sh /entrypoint.sh
+COPY --chmod=755 entrypoint.sh parse-cmake-args.sh /
 
 ENTRYPOINT ["/entrypoint.sh"]

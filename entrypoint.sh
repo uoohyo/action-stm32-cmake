@@ -1,5 +1,6 @@
 #!/bin/bash
 set -euo pipefail
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 
 # Banner
 cat << 'EOF'
@@ -87,12 +88,9 @@ fi
 # Navigate to project directory
 cd "$PROJECT_PATH"
 
-# Do not evaluate arbitrary shell fragments from cmake-args.
-# For paths containing spaces, define arguments in CMakePresets.json.
-EXTRA_ARGS=()
-if [ -n "$CMAKE_ARGS" ]; then
-    read -r -a EXTRA_ARGS <<< "$CMAKE_ARGS"
-fi
+# Parse shell-style quoting without evaluating substitutions or shell commands.
+source "$SCRIPT_DIR/parse-cmake-args.sh"
+parse_cmake_args "$CMAKE_ARGS" || exit 1
 
 PRESET_NAME=""
 for ((i=0; i<${#EXTRA_ARGS[@]}; i++)); do

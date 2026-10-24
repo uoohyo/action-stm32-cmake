@@ -225,3 +225,29 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## Release verification
+
+See [release propagation and verification](docs/release-verification.md) for stage-specific readiness, manual recovery, and immutable tag behavior.
+
+### Quoting `cmake-args`
+
+Arguments support whitespace separators, single/double quotes, and backslash escapes.
+For example, `--preset "Custom Debug" -DNAME="hello world"` preserves each quoted
+value as one argument. Empty quoted arguments are preserved; unmatched quotes and
+trailing escapes fail explicitly. Shell expansion is never performed: `$HOME`,
+`$(command)`, backticks, globs, and shell operators are passed as literal text.
+Use CMake presets for complex toolchain settings. This behavior applies to refs
+containing the parser update, not to older immutable toolchain tags.
+
+### Republishing Action fixes for existing versions
+
+Toolchain tags identify both a pinned compiler image and an Action implementation.
+Changing `main` alone does not update existing tagged code. The manual existing-version
+refresh procedure in [release verification](docs/release-verification.md) republishes
+explicitly selected deployed refs with verified backup branches, recovery ledgers, and
+expected-old-OID leases. It preserves each toolchain version's Docker pin and does not
+change the installation model. Scheduled synchronization never opts into this mode.
+
+Test the final implementation and coordinate the exact version list before running
+refresh. Partial failure is not atomic; inspect the recorded per-version results.
