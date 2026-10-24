@@ -240,15 +240,14 @@ trailing escapes fail explicitly. Shell expansion is never performed: `$HOME`,
 Use CMake presets for complex toolchain settings. This behavior applies to refs
 containing the parser update, not to older immutable toolchain tags.
 
-### Releasing Action fixes (decision pending)
+### Republishing Action fixes for existing versions
 
-A toolchain tag identifies both its pinned compiler image and an Action code commit.
-Changing `main` does not update that tagged implementation. The release policy for
-existing users still requires an owner decision: publish a new explicit revision,
-or deliberately republish selected existing refs with documented compatibility and
-reproducibility consequences. Neither option changes the Docker installation model.
+Toolchain tags identify both a pinned compiler image and an Action implementation.
+Changing `main` alone does not update existing tagged code. The manual existing-version
+refresh procedure in [release verification](docs/release-verification.md) republishes
+explicitly selected deployed refs with verified backup branches, recovery ledgers, and
+expected-old-OID leases. It preserves each toolchain version's Docker pin and does not
+change the installation model. Scheduled synchronization never opts into this mode.
 
-Automatic synchronization currently preserves existing full-version refs. This PR
-does not republish them or select a new tag naming policy. Before any release, test
-custom `binaryDir`, a non-default generator, and quoted arguments against the exact
-intended ref, then document the upgrade and affected versions.
+Test the final implementation and coordinate the exact version list before running
+refresh. Partial failure is not atomic; inspect the recorded per-version results.
