@@ -240,10 +240,15 @@ trailing escapes fail explicitly. Shell expansion is never performed: `$HOME`,
 Use CMake presets for complex toolchain settings. This behavior applies to refs
 containing the parser update, not to older immutable toolchain tags.
 
-### Action revision releases (decision pending)
+### Releasing Action fixes (decision pending)
 
-Existing full toolchain tags must not silently move when Action code changes.
-An additive immutable revision (for example, `v1.21.0-action.1`) is a proposed upgrade
-path, not an available release or an approved naming policy. Before publishing,
-confirm the naming policy, test custom `binaryDir` and non-default generators against
-the exact new ref, and document the upgrade. This PR does not publish or retarget tags.
+A toolchain tag identifies both its pinned compiler image and an Action code commit.
+Changing `main` does not update that tagged implementation. The release policy for
+existing users still requires an owner decision: publish a new explicit revision,
+or deliberately republish selected existing refs with documented compatibility and
+reproducibility consequences. Neither option changes the Docker installation model.
+
+Automatic synchronization currently preserves existing full-version refs. This PR
+does not republish them or select a new tag naming policy. Before any release, test
+custom `binaryDir`, a non-default generator, and quoted arguments against the exact
+intended ref, then document the upgrade and affected versions.
