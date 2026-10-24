@@ -41,7 +41,7 @@ jobs:
             "version": 3,
             "configurePresets": [{
               "name": "Custom",
-              "generator": "Ninja",
+              "generator": "Unix Makefiles",
               "binaryDir": "${sourceDir}/out/nonstandard",
               "cacheVariables": {"CMAKE_BUILD_TYPE": "Debug"}
             }]
@@ -74,6 +74,8 @@ jobs:
         run: |
           if [ "${{ matrix.mode }}" != "custom-preset" ]; then
             test -s ci-fixture/build/libfirmware.a
+            test -f ci-fixture/build/build.ninja
           else
             test -s ci-fixture/out/nonstandard/libfirmware.a
+            test -f ci-fixture/out/nonstandard/Makefile
           fi
